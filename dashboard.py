@@ -15,10 +15,7 @@ def load_data():
 
 main_df = load_data()
 
-# Menambahkan filter di Sidebar
-with st.sidebar:
-    st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png") 
-    # Memastikan range waktu tersedia
+# Memastikan range waktu tersedia
     start_date, end_date = st.date_input(
         label='Rentang Waktu',
         min_value=main_df['dteday'].min(),
