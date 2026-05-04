@@ -4,27 +4,25 @@ import seaborn as sns
 import streamlit as st
 
 # Set judul dashboard
-st.set_page_config(page_title="Bike Sharing Dashboard", layout="wide")
 st.header('Bike Sharing Analytics Dashboard 🚲')
 
 # Memuat data
 @st.cache_data # Menambahkan cache agar loading lebih cepat
 def load_data():
-    # Pastikan file main_data.csv ada di root folder repository GitHub Anda
     df = pd.read_csv("main_data.csv")
     df['dteday'] = pd.to_datetime(df['dteday'])
     return df
 
 main_df = load_data()
 
-# PERBAIKAN: Menghapus spasi di depan (IndentationError fix)
-# Filter Rentang Waktu
-start_date, end_date = st.date_input(
-    label='Rentang Waktu',
-    min_value=main_df['dteday'].min(),
-    max_value=main_df['dteday'].max(),
-    value=[main_df['dteday'].min(), main_df['dteday'].max()]
-)
+
+    # Memastikan range waktu tersedia
+    start_date, end_date = st.date_input(
+        label='Rentang Waktu',
+        min_value=main_df['dteday'].min(),
+        max_value=main_df['dteday'].max(),
+        value=[main_df['dteday'].min(), main_df['dteday'].max()]
+    )
 
 # Filter data berdasarkan input user
 filtered_df = main_df[(main_df['dteday'] >= pd.to_datetime(start_date)) & 
@@ -37,59 +35,149 @@ with col1:
     st.metric("Total Penyewaan", value=f"{total_rentals:,}")
 with col2:
     avg_rentals = round(filtered_df['cnt'].mean(), 2)
-    st.metric("Rata-rata Penyewaan", value=avg_rentals)
+    st.metric("Rata-rata Penyewaan/Jam", value=avg_rentals)
 
 # --- VISUALISASI 1: MUSIM & CUACA ---
-st.markdown("---")
 st.subheader("Analisis Berdasarkan Musim dan Cuaca")
 
-col_a, col_b = st.columns(2)
 
-with col_a:
-    seasonal_counts = filtered_df.groupby('season').cnt.sum().sort_values(ascending=False)
-    season_names = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    labels = [season_names[idx] for idx in seasonal_counts.index]
-    ax.bar(labels, seasonal_counts.values, color='skyblue', edgecolor='black')
-    ax.set_title('Total Rentals by Season')
-    st.pyplot(fig)
+# Musim
+seasonal_counts = main_df.groupby('season').cnt.sum().sort_values(ascending=False)
 
-with col_b:
-    weather_counts = filtered_df.groupby('weathersit').cnt.sum().sort_values(ascending=False)
-    weather_names = {1: 'Clear', 2: 'Cloudy', 3: 'Light Snow/Rain', 4: 'Heavy Rain'}
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    labels = [weather_names.get(idx, 'Other') for idx in weather_counts.index]
-    ax.bar(labels, weather_counts.values, color='lightcoral', edgecolor='black')
-    ax.set_title('Total Rentals by Weather')
-    st.pyplot(fig)
+# Create a mapping for season numbers to names
+season_names = {
+    1: 'Spring',
+    2: 'Summer',
+    3: 'Fall',
+    4: 'Winter'
+}
+
+season_colors = {
+    'Winter': 'lightblue',
+    'Spring': 'lightgreen',
+    'Summer': 'lightyellow',
+    'Fall': 'pink'  # Changed 'babypink' to 'pink'
+}
+
+plt.figure(figsize=(8, 6))
+
+# Map numerical season labels to descriptive names
+labels = [season_names[idx] for idx in seasonal_counts.index]
+sizes = seasonal_counts.values
+colors = [season_colors[label] for label in labels]
+
+plt.figure(figsize=(10, 6))
+plt.bar(labels, sizes, color=colors, edgecolor='black')
+
+plt.xlabel('Season')
+plt.ylabel('Total Rentals')
+plt.title('Total Bike Rentals by Season')
+for i, value in enumerate(sizes):
+    plt.text(i, value + 500, str(value), ha='center', va='bottom')
+plt.tight_layout()
+plt.show()
+
+#Cuaca
+weather_counts = main_df.groupby('weathersit').cnt.sum().sort_values(ascending=False)
+
+# Create a mapping for weathersit numbers to names
+weather_names = {
+    1: 'Clear',
+    2: 'Cloudy',
+    3: 'Light Snow/Rain',
+    4: 'Heavy Rain/Ice Pallets'
+}
+
+weather_colors = {
+    'Clear':'skyblue',
+    'Cloudy':'lightblue',
+    'Light Snow/Rain':'grey',
+    'Heavy Rain/Ice Pallets':'white'
+}
+
+sizes = weather_counts.values
+# Map numerical weathersit labels to descriptive names
+labels = [weather_names[idx] for idx in weather_counts.index]
+colors_weather = [weather_colors[label] for label in labels]
+
+plt.figure(figsize=(10, 6))
+plt.bar(labels, sizes, color=colors_weather, edgecolor='black')
+
+plt.xlabel('Weather')
+plt.ylabel('Total Rentals')
+plt.title('Total Bike Rentals by Weather')
+for i, value in enumerate(sizes):
+    plt.text(i, value + 500, str(value), ha='center', va='bottom')
+plt.tight_layout()
+plt.show()
+
+# Waktu
+hourly_counts = main_df.groupby('hr')['cnt'].sum()
+
+plt.figure(figsize=(10, 6))
+hourly_counts.plot(kind='bar', color='lightblue')
+plt.title('Total Bike Rentals by Hour of the Day')
+plt.xlabel('Hour')
+plt.ylabel('Total Rentals')
+plt.xticks(rotation=0)
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+clustering = main_df.groupby(['weekday', 'hr'])['cnt'].sum().unstack()
+
+print(clustering)
+
+plt.figure(figsize=(12, 8))
+sns.heatmap(clustering, cmap="coolwarm", annot=False, fmt=".0f")
+plt.title('Bike Rentals Heatmap by Weekday and Hour')
+plt.xlabel('Hour of the Day')
+plt.ylabel('Day of the Week')
+plt.show()
 
 # --- VISUALISASI 2: REGISTERED VS CASUAL ---
-st.markdown("---")
 st.subheader("Registered vs Casual Customers")
 
-# Menggunakan freq='ME' untuk Monthly End
+# PERBAIKAN: Menggunakan filtered_df (bukan day_df yang tidak ada)
 monthly_rentals = filtered_df.groupby(pd.Grouper(key='dteday', freq='ME')).agg({
     "casual": "sum",
     "registered": "sum"
 }).reset_index()
 
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(monthly_rentals['dteday'], monthly_rentals['registered'], marker='o', label='Registered', color='#72BCD4')
-ax.plot(monthly_rentals['dteday'], monthly_rentals['casual'], marker='o', label='Casual', color='#D3D3D3')
-ax.set_title('Monthly Trends: Registered vs Casual')
-ax.legend()
-st.pyplot(fig)
+monthly_rentals = day_df.groupby(pd.Grouper(key='dteday', freq='ME')).agg({
+    "casual": "sum",
+    "registered": "sum"
+}).reset_index()
+monthly_rentals = monthly_rentals.rename(columns={'dteday': 'date'})
+
+plt.figure(figsize=(14, 8))
+plt.plot(monthly_rentals['date'], monthly_rentals['registered'], marker='o', label='Registered Rentals')
+plt.plot(monthly_rentals['date'], monthly_rentals['casual'], marker='o', label='Casual Rentals')
+
+plt.title('Monthly Bike Rentals of Registered and Casual Customers')
+plt.xlabel('Month')
+plt.ylabel('Total Customers')
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid(True)
+
+plt.show()
 
 # Pie Chart
-st.write("#### User Composition")
-total_reg = filtered_df['registered'].sum()
-total_cas = filtered_df['casual'].sum()
+total_registered = main_df['registered'].sum()
+total_casual = main_df['casual'].sum()
+labels = ['Registered', 'Casual']
+sizes = [total_registered, total_casual]
+colors = ['lightblue', 'white']
 
-fig, ax = plt.subplots(figsize=(6, 6))
-ax.pie([total_reg, total_cas], labels=['Registered', 'Casual'], autopct='%1.1f%%', colors=['#72BCD4', '#D3D3D3'], startangle=90)
-ax.set_title('User Composition')
-st.pyplot(fig)
+plt.figure(figsize=(8, 6))
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140, pctdistance=0.85)
+plt.axis('equal')
+plt.title('Percentage of Registered vs Casual Customer')
+plt.tight_layout()
+plt.show()
 
 st.caption('Copyright (c) Shinta Khumaira 2026')
+
+
+
