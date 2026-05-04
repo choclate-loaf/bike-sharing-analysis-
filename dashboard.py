@@ -7,7 +7,7 @@ import streamlit as st
 st.header('Bike Sharing Analytics Dashboard 🚲')
 
 # Memuat data
-@st.cache_data # Menambahkan cache agar loading lebih cepat
+@st.cache_data 
 def load_data():
     df = pd.read_csv("main_data.csv")
     df['dteday'] = pd.to_datetime(df['dteday'])
@@ -15,14 +15,13 @@ def load_data():
 
 main_df = load_data()
 
-
-    # Memastikan range waktu tersedia
-    start_date, end_date = st.date_input(
-        label='Rentang Waktu',
-        min_value=main_df['dteday'].min(),
-        max_value=main_df['dteday'].max(),
-        value=[main_df['dteday'].min(), main_df['dteday'].max()]
-    )
+# PERBAIKAN 1: Indentasi diperbaiki (start_date disejajarkan ke kiri)
+start_date, end_date = st.date_input(
+    label='Rentang Waktu',
+    min_value=main_df['dteday'].min(),
+    max_value=main_df['dteday'].max(),
+    value=[main_df['dteday'].min(), main_df['dteday'].max()]
+)
 
 # Filter data berdasarkan input user
 filtered_df = main_df[(main_df['dteday'] >= pd.to_datetime(start_date)) & 
@@ -40,144 +39,80 @@ with col2:
 # --- VISUALISASI 1: MUSIM & CUACA ---
 st.subheader("Analisis Berdasarkan Musim dan Cuaca")
 
-
 # Musim
-seasonal_counts = main_df.groupby('season').cnt.sum().sort_values(ascending=False)
+seasonal_counts = filtered_df.groupby('season').cnt.sum().sort_values(ascending=False)
+season_names = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
+season_colors = {'Winter': 'lightblue', 'Spring': 'lightgreen', 'Summer': 'lightyellow', 'Fall': 'pink'}
 
-# Create a mapping for season numbers to names
-season_names = {
-    1: 'Spring',
-    2: 'Summer',
-    3: 'Fall',
-    4: 'Winter'
-}
-
-season_colors = {
-    'Winter': 'lightblue',
-    'Spring': 'lightgreen',
-    'Summer': 'lightyellow',
-    'Fall': 'pink'  # Changed 'babypink' to 'pink'
-}
-
-plt.figure(figsize=(8, 6))
-
-# Map numerical season labels to descriptive names
 labels = [season_names[idx] for idx in seasonal_counts.index]
 sizes = seasonal_counts.values
 colors = [season_colors[label] for label in labels]
 
-plt.figure(figsize=(10, 6))
-plt.bar(labels, sizes, color=colors, edgecolor='black')
-
-plt.xlabel('Season')
-plt.ylabel('Total Rentals')
-plt.title('Total Bike Rentals by Season')
+fig1, ax1 = plt.subplots(figsize=(10, 6)) # PERBAIKAN 2: Menggunakan subplots
+ax1.bar(labels, sizes, color=colors, edgecolor='black')
+ax1.set_xlabel('Season')
+ax1.set_ylabel('Total Rentals')
+ax1.set_title('Total Bike Rentals by Season')
 for i, value in enumerate(sizes):
-    plt.text(i, value + 500, str(value), ha='center', va='bottom')
-plt.tight_layout()
-plt.show()
+    ax1.text(i, value + 500, str(value), ha='center', va='bottom')
+st.pyplot(fig1) # PERBAIKAN 3: Menampilkan di Streamlit
 
-#Cuaca
-weather_counts = main_df.groupby('weathersit').cnt.sum().sort_values(ascending=False)
+# Cuaca
+weather_counts = filtered_df.groupby('weathersit').cnt.sum().sort_values(ascending=False)
+weather_names = {1: 'Clear', 2: 'Cloudy', 3: 'Light Snow/Rain', 4: 'Heavy Rain/Ice Pallets'}
+weather_colors = {'Clear':'skyblue', 'Cloudy':'lightblue', 'Light Snow/Rain':'grey', 'Heavy Rain/Ice Pallets':'white'}
 
-# Create a mapping for weathersit numbers to names
-weather_names = {
-    1: 'Clear',
-    2: 'Cloudy',
-    3: 'Light Snow/Rain',
-    4: 'Heavy Rain/Ice Pallets'
-}
+labels_w = [weather_names[idx] for idx in weather_counts.index]
+colors_weather = [weather_colors[label] for label in labels_w]
 
-weather_colors = {
-    'Clear':'skyblue',
-    'Cloudy':'lightblue',
-    'Light Snow/Rain':'grey',
-    'Heavy Rain/Ice Pallets':'white'
-}
+fig2, ax2 = plt.subplots(figsize=(10, 6))
+ax2.bar(labels_w, weather_counts.values, color=colors_weather, edgecolor='black')
+ax2.set_xlabel('Weather')
+ax2.set_ylabel('Total Rentals')
+ax2.set_title('Total Bike Rentals by Weather')
+for i, value in enumerate(weather_counts.values):
+    ax2.text(i, value + 500, str(value), ha='center', va='bottom')
+st.pyplot(fig2)
 
-sizes = weather_counts.values
-# Map numerical weathersit labels to descriptive names
-labels = [weather_names[idx] for idx in weather_counts.index]
-colors_weather = [weather_colors[label] for label in labels]
+# Waktu (Hourly)
+hourly_counts = filtered_df.groupby('hr')['cnt'].sum()
+fig3, ax3 = plt.subplots(figsize=(10, 6))
+hourly_counts.plot(kind='bar', color='lightblue', ax=ax3)
+ax3.set_title('Total Bike Rentals by Hour of the Day')
+ax3.set_xlabel('Hour')
+ax3.set_ylabel('Total Rentals')
+st.pyplot(fig3)
 
-plt.figure(figsize=(10, 6))
-plt.bar(labels, sizes, color=colors_weather, edgecolor='black')
-
-plt.xlabel('Weather')
-plt.ylabel('Total Rentals')
-plt.title('Total Bike Rentals by Weather')
-for i, value in enumerate(sizes):
-    plt.text(i, value + 500, str(value), ha='center', va='bottom')
-plt.tight_layout()
-plt.show()
-
-# Waktu
-hourly_counts = main_df.groupby('hr')['cnt'].sum()
-
-plt.figure(figsize=(10, 6))
-hourly_counts.plot(kind='bar', color='lightblue')
-plt.title('Total Bike Rentals by Hour of the Day')
-plt.xlabel('Hour')
-plt.ylabel('Total Rentals')
-plt.xticks(rotation=0)
-plt.grid(axis='y')
-plt.tight_layout()
-plt.show()
-
-clustering = main_df.groupby(['weekday', 'hr'])['cnt'].sum().unstack()
-
-print(clustering)
-
-plt.figure(figsize=(12, 8))
-sns.heatmap(clustering, cmap="coolwarm", annot=False, fmt=".0f")
-plt.title('Bike Rentals Heatmap by Weekday and Hour')
-plt.xlabel('Hour of the Day')
-plt.ylabel('Day of the Week')
-plt.show()
+# Heatmap
+clustering = filtered_df.groupby(['weekday', 'hr'])['cnt'].sum().unstack()
+fig4, ax4 = plt.subplots(figsize=(12, 8))
+sns.heatmap(clustering, cmap="coolwarm", annot=False, fmt=".0f", ax=ax4)
+ax4.set_title('Bike Rentals Heatmap by Weekday and Hour')
+st.pyplot(fig4)
 
 # --- VISUALISASI 2: REGISTERED VS CASUAL ---
 st.subheader("Registered vs Casual Customers")
 
-# PERBAIKAN: Menggunakan filtered_df (bukan day_df yang tidak ada)
+# PERBAIKAN 4: Menghapus baris day_df yang menyebabkan error
 monthly_rentals = filtered_df.groupby(pd.Grouper(key='dteday', freq='ME')).agg({
     "casual": "sum",
     "registered": "sum"
 }).reset_index()
 
-monthly_rentals = day_df.groupby(pd.Grouper(key='dteday', freq='ME')).agg({
-    "casual": "sum",
-    "registered": "sum"
-}).reset_index()
-monthly_rentals = monthly_rentals.rename(columns={'dteday': 'date'})
-
-plt.figure(figsize=(14, 8))
-plt.plot(monthly_rentals['date'], monthly_rentals['registered'], marker='o', label='Registered Rentals')
-plt.plot(monthly_rentals['date'], monthly_rentals['casual'], marker='o', label='Casual Rentals')
-
-plt.title('Monthly Bike Rentals of Registered and Casual Customers')
-plt.xlabel('Month')
-plt.ylabel('Total Customers')
-plt.legend()
+fig5, ax5 = plt.subplots(figsize=(14, 8))
+ax5.plot(monthly_rentals['dteday'], monthly_rentals['registered'], marker='o', label='Registered Rentals')
+ax5.plot(monthly_rentals['dteday'], monthly_rentals['casual'], marker='o', label='Casual Rentals')
+ax5.set_title('Monthly Bike Rentals of Registered and Casual Customers')
+ax5.legend()
 plt.xticks(rotation=45)
-plt.grid(True)
-
-plt.show()
+st.pyplot(fig5)
 
 # Pie Chart
-total_registered = main_df['registered'].sum()
-total_casual = main_df['casual'].sum()
-labels = ['Registered', 'Casual']
-sizes = [total_registered, total_casual]
-colors = ['lightblue', 'white']
-
-plt.figure(figsize=(8, 6))
-plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140, pctdistance=0.85)
-plt.axis('equal')
-plt.title('Percentage of Registered vs Casual Customer')
-plt.tight_layout()
-plt.show()
+total_registered = filtered_df['registered'].sum()
+total_casual = filtered_df['casual'].sum()
+fig6, ax6 = plt.subplots(figsize=(8, 6))
+ax6.pie([total_registered, total_casual], labels=['Registered', 'Casual'], colors=['lightblue', 'white'], autopct='%1.1f%%', startangle=140)
+ax6.set_title('Percentage of Registered vs Casual Customer')
+st.pyplot(fig6)
 
 st.caption('Copyright (c) Shinta Khumaira 2026')
-
-
-
