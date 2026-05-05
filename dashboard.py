@@ -3,21 +3,32 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 
-# Set judul dashboard
+# Konfigurasi Halaman
 st.set_page_config(page_title="Bike Sharing Dashboard", layout="wide")
 st.header('Bike Sharing Analytics Dashboard 🚲')
 
-# Memuat data bersih
+# Memuat data dengan penanganan error kolom
 @st.cache_data 
 def load_data():
     df = pd.read_csv("main_data.csv") 
     df['dteday'] = pd.to_datetime(df['dteday'])
+    
+    # Memastikan kolom deskripsi ada (antisipasi jika tidak sengaja terhapus)
+    if 'season_desc' not in df.columns:
+        season_map = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
+        df['season_desc'] = df['season'].map(season_map)
+    if 'weather_desc' not in df.columns:
+        weather_map = {1: 'Clear', 2: 'Cloudy', 3: 'Light Rain', 4: 'Heavy Rain'}
+        df['weather_desc'] = df['weathersit'].map(weather_map)
+        
     return df
 
 main_df = load_data()
 
-# Sidebar untuk filter rentang waktu
+# Sidebar
 with st.sidebar:
+    st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
+    # Penyesuaian rentang waktu sesuai data notebook 2011-2012
     start_date, end_date = st.date_input(
         label='Rentang Waktu',
         min_value=main_df['dteday'].min(),
@@ -25,75 +36,55 @@ with st.sidebar:
         value=[main_df['dteday'].min(), main_df['dteday'].max()]
     )
 
-# Filter data berdasarkan input user
+# Filter Data
 filtered_df = main_df[(main_df['dteday'] >= pd.to_datetime(start_date)) & 
                        (main_df['dteday'] <= pd.to_datetime(end_date))]
 
-# Menampilkan Metric Utama
+# Metrics Row
 col1, col2, col3 = st.columns(3)
 with col1:
-    total_rentals = filtered_df['cnt'].sum()
-    st.metric("Total Penyewaan", value=f"{total_rentals:,}")
+    st.metric("Total Penyewaan", value=f"{filtered_df['cnt'].sum():,}")
 with col2:
-    total_registered = filtered_df['registered'].sum()
-    st.metric("Pelanggan Terdaftar", value=f"{total_registered:,}")
+    st.metric("Pelanggan Terdaftar", value=f"{filtered_df['registered'].sum():,}")
 with col3:
-    total_casual = filtered_df['casual'].sum()
-    st.metric("Pelanggan Casual", value=f"{total_casual:,}")
+    st.metric("Pelanggan Casual", value=f"{filtered_df['casual'].sum():,}")
 
 st.divider()
 
-# --- VISUALISASI 1: MUSIM & CUACA ---
-st.subheader("Faktor Eksternal: Musim dan Cuaca")
+# --- Visualisasi Utama ---
+col_left, col_right = st.columns(2)
 
-col_a, col_b = st.columns(2)
+with col_left:
+    st.subheader("Penyewaan Berdasarkan Musim")
+    # Grouping menggunakan kolom deskripsi yang sudah divalidasi
+    seasonal_data = filtered_df.groupby('season_desc')['cnt'].sum().reset_index()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(data=seasonal_data, x='season_desc', y='cnt', palette="Blues_d", ax=ax)
+    ax.set_xlabel(None)
+    ax.set_ylabel("Jumlah Penyewaan")
+    st.pyplot(fig)
 
-with col_a:
-    # Menggunakan season_desc dari main_data.csv
-    seasonal_counts = filtered_df.groupby('season_desc').cnt.sum().sort_values(ascending=False)
-    fig1, ax1 = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=seasonal_counts.index, y=seasonal_counts.values, palette="viridis", ax=ax1)
-    ax1.set_title('Penyewaan Berdasarkan Musim')
-    ax1.set_ylabel('Total Penyewaan')
-    ax1.set_xlabel(None)
-    st.pyplot(fig1)
+with col_right:
+    st.subheader("Penyewaan Berdasarkan Cuaca")
+    weather_data = filtered_df.groupby('weather_desc')['cnt'].sum().reset_index()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(data=weather_data, x='weather_desc', y='cnt', palette="Reds_d", ax=ax)
+    ax.set_xlabel(None)
+    ax.set_ylabel("Jumlah Penyewaan")
+    st.pyplot(fig)
 
-with col_b:
-    # Menggunakan weather_desc dari main_data.csv
-    weather_counts = filtered_df.groupby('weather_desc').cnt.sum().sort_values(ascending=False)
-    fig2, ax2 = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=weather_counts.index, y=weather_counts.values, palette="magma", ax=ax2)
-    ax2.set_title('Penyewaan Berdasarkan Kondisi Cuaca')
-    ax2.set_ylabel('Total Penyewaan')
-    ax2.set_xlabel(None)
-    st.pyplot(fig2)
-
-# --- VISUALISASI 2: TREN BULANAN ---
-st.subheader("Tren Penyewaan Bulanan (Registered vs Casual)")
-
-monthly_rentals = filtered_df.resample(rule='M', on='dteday').agg({
-    "casual": "sum",
+# --- Tren Bulanan ---
+st.subheader("Tren Penyewaan Bulanan")
+monthly_trend = filtered_df.resample(rule='M', on='dteday').agg({
     "registered": "sum",
-    "cnt": "sum"
+    "casual": "sum"
 }).reset_index()
 
-fig3, ax3 = plt.subplots(figsize=(16, 8))
-ax3.plot(monthly_rentals['dteday'], monthly_rentals['registered'], marker='o', linewidth=2, label='Registered', color='#2E86C1')
-ax3.plot(monthly_rentals['dteday'], monthly_rentals['casual'], marker='o', linewidth=2, label='Casual', color='#E67E22')
-ax3.set_title('Tren Penyewaan Sepeda per Bulan', fontsize=20)
-ax3.legend(fontsize=12)
-ax3.grid(True, linestyle='--', alpha=0.6)
-st.pyplot(fig3)
+fig, ax = plt.subplots(figsize=(16, 8))
+ax.plot(monthly_trend['dteday'], monthly_trend['registered'], label='Registered', marker='o', linewidth=2)
+ax.plot(monthly_trend['dteday'], monthly_trend['casual'], label='Casual', marker='o', linewidth=2)
+ax.set_title("Perkembangan Penyewaan 2011-2012", fontsize=15)
+ax.legend()
+st.pyplot(fig)
 
-# --- VISUALISASI 3: PERBANDINGAN KOMPOSISI ---
-st.subheader("Komposisi Pelanggan")
-
-fig4, ax4 = plt.subplots(figsize=(8, 8))
-labels = ['Registered', 'Casual']
-sizes = [total_registered, total_casual]
-colors = ['#2E86C1', '#E67E22']
-ax4.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, colors=colors, explode=(0.1, 0))
-ax4.set_title('Perbandingan Total Pelanggan')
-st.pyplot(fig4)
-
-st.caption('Copyright (c) Shinta Khumaira 2026 | Data Source: main_data.csv')
+st.caption('Copyright (c) Shinta Khumaira 2026 | Dataset: Bike Sharing - main_data.csv')
