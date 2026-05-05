@@ -1,90 +1,111 @@
+import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import streamlit as st
 
-# Konfigurasi Halaman
-st.set_page_config(page_title="Bike Sharing Dashboard", layout="wide")
-st.header('Bike Sharing Analytics Dashboard 🚲')
+# --- KONFIGURASI HALAMAN ---
+st.set_page_config(
+    page_title="Dashboard Analisis Sepeda - Shinta Khumaira",
+    page_icon="🚲",
+    layout="wide"
+)
 
-# Memuat data dengan penanganan error kolom
-@st.cache_data 
+# --- FUNGSI LOAD DATA ---
+@st.cache_data
 def load_data():
-    df = pd.read_csv("main_data.csv") 
-    df['dteday'] = pd.to_datetime(df['dteday'])
+    # Memuat data sesuai dengan struktur notebook
+    day_df = pd.read_csv('data/day.csv')
+    hour_df = pd.read_csv('data/hour.csv')
     
-    # Memastikan kolom deskripsi ada (antisipasi jika tidak sengaja terhapus)
-    if 'season_desc' not in df.columns:
-        season_map = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
-        df['season_desc'] = df['season'].map(season_map)
-    if 'weather_desc' not in df.columns:
-        weather_map = {1: 'Clear', 2: 'Cloudy', 3: 'Light Rain', 4: 'Heavy Rain'}
-        df['weather_desc'] = df['weathersit'].map(weather_map)
-        
-    return df
+    # Cleaning: Konversi dteday ke datetime (Sesuai notebook)
+    day_df['dteday'] = pd.to_datetime(day_df['dteday'])
+    hour_df['dteday'] = pd.to_datetime(hour_df['dteday'])
+    
+    # Mapping untuk label agar lebih informatif
+    day_df['season_label'] = day_df['season'].map({1: 'Springer', 2: 'Summer', 3: 'Fall', 4: 'Winter'})
+    day_df['yr_label'] = day_df['yr'].map({0: '2011', 2: '2012'})
+    
+    return day_df, hour_df
 
-main_df = load_data()
+day_df, hour_df = load_data()
 
-# Sidebar
+# --- SIDEBAR ---
 with st.sidebar:
-    st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
-    # Penyesuaian rentang waktu sesuai data notebook 2011-2012
-    start_date, end_date = st.date_input(
-        label='Rentang Waktu',
-        min_value=main_df['dteday'].min(),
-        max_value=main_df['dteday'].max(),
-        value=[main_df['dteday'].min(), main_df['dteday'].max()]
-    )
+    st.image("https://static.vecteezy.com/system/resources/previews/000/594/193/original/bicycle-icon-vector-illustration.jpg")
+    st.markdown("### Profil Peneliti")
+    st.markdown("**Nama:** Shinta Khumaira")
+    st.markdown("**Email:** Banoffe1993@gmail.com")
+    st.markdown("**ID Dicoding:** maira_14")
+    st.markdown("---")
+    
+    # Filter Tahun
+    selected_year = st.selectbox("Pilih Tahun", options=[2011, 2012])
+    year_val = 0 if selected_year == 2011 else 1
+    
+    # Filter Data berdasarkan tahun
+    filtered_day_df = day_df[day_df['yr'] == year_val]
 
-# Filter Data
-filtered_df = main_df[(main_df['dteday'] >= pd.to_datetime(start_date)) & 
-                       (main_df['dteday'] <= pd.to_datetime(end_date))]
+# --- MAIN DASHBOARD ---
+st.title("📊 Proyek Analisis Data: Bike Sharing Dataset")
+st.markdown("Dashboard ini menyajikan hasil analisis untuk menjawab pertanyaan bisnis terkait pola penyewaan sepeda.")
 
-# Metrics Row
+# --- METRIC SECTION (Jawaban Pertanyaan 1) ---
+st.header("1. Ringkasan Total Penyewa")
 col1, col2, col3 = st.columns(3)
+
 with col1:
-    st.metric("Total Penyewaan", value=f"{filtered_df['cnt'].sum():,}")
+    total_casual = filtered_day_df['casual'].sum()
+    st.metric("Total Pelanggan Kasual", f"{total_casual:,}")
+
 with col2:
-    st.metric("Pelanggan Terdaftar", value=f"{filtered_df['registered'].sum():,}")
+    total_registered = filtered_day_df['registered'].sum()
+    st.metric("Total Pelanggan Terdaftar", f"{total_registered:,}")
+
 with col3:
-    st.metric("Pelanggan Casual", value=f"{filtered_df['casual'].sum():,}")
+    total_cnt = filtered_day_df['cnt'].sum()
+    st.metric("Total Keseluruhan", f"{total_cnt:,}")
 
-st.divider()
+st.info("**Insight:** Sesuai dengan EDA, pengguna **terdaftar** (registered) jauh lebih mendominasi dibandingkan pengguna kasual.")
 
-# --- Visualisasi Utama ---
-col_left, col_right = st.columns(2)
+# --- SEASONAL ANALYSIS (Jawaban Pertanyaan 2) ---
+st.header("2. Kondisi Puncak Peminjaman (Musim)")
+fig, ax = plt.subplots(figsize=(10, 5))
 
-with col_left:
-    st.subheader("Penyewaan Berdasarkan Musim")
-    # Grouping menggunakan kolom deskripsi yang sudah divalidasi
-    seasonal_data = filtered_df.groupby('season_desc')['cnt'].sum().reset_index()
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(data=seasonal_data, x='season_desc', y='cnt', palette="Blues_d", ax=ax)
-    ax.set_xlabel(None)
-    ax.set_ylabel("Jumlah Penyewaan")
-    st.pyplot(fig)
+# Menggunakan pivot table seperti di notebook
+seasonal_usage = filtered_day_df.groupby('season_label')['cnt'].sum().reset_index()
+sns.barplot(x='season_label', y='cnt', data=seasonal_usage, palette='viridis', ax=ax)
 
-with col_right:
-    st.subheader("Penyewaan Berdasarkan Cuaca")
-    weather_data = filtered_df.groupby('weather_desc')['cnt'].sum().reset_index()
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(data=weather_data, x='weather_desc', y='cnt', palette="Reds_d", ax=ax)
-    ax.set_xlabel(None)
-    ax.set_ylabel("Jumlah Penyewaan")
-    st.pyplot(fig)
-
-# --- Tren Bulanan ---
-st.subheader("Tren Penyewaan Bulanan")
-monthly_trend = filtered_df.resample(rule='M', on='dteday').agg({
-    "registered": "sum",
-    "casual": "sum"
-}).reset_index()
-
-fig, ax = plt.subplots(figsize=(16, 8))
-ax.plot(monthly_trend['dteday'], monthly_trend['registered'], label='Registered', marker='o', linewidth=2)
-ax.plot(monthly_trend['dteday'], monthly_trend['casual'], label='Casual', marker='o', linewidth=2)
-ax.set_title("Perkembangan Penyewaan 2011-2012", fontsize=15)
-ax.legend()
+ax.set_title(f"Total Peminjaman Berdasarkan Musim di Tahun {selected_year}")
+ax.set_xlabel("Musim")
+ax.set_ylabel("Total Peminjaman")
 st.pyplot(fig)
 
-st.caption('Copyright (c) Shinta Khumaira 2026 | Dataset: Bike Sharing - main_data.csv')
+st.success("**Hasil Analisis:** Musim **Fall (Musim ke-3)** menunjukkan angka tertinggi secara konsisten, sesuai dengan temuan di notebook.")
+
+# --- TREND ANALYSIS (Jawaban Pertanyaan 3) ---
+st.header("3. Tren Kinerja Penyewaan (Bulanan)")
+fig2, ax2 = plt.subplots(figsize=(12, 5))
+
+# Mengelompokkan berdasarkan bulan
+monthly_trend = filtered_day_df.groupby('mnth')['cnt'].sum().reset_index()
+sns.lineplot(x='mnth', y='cnt', data=monthly_trend, marker='o', color='blue', ax=ax2)
+
+ax2.set_xticks(range(1, 13))
+ax2.set_title(f"Tren Peminjaman Bulanan Tahun {selected_year}")
+ax2.set_xlabel("Bulan")
+ax2.set_ylabel("Jumlah Sewa")
+st.pyplot(fig2)
+
+# --- WORKING DAY COMPARISON (Tambahan dari EDA) ---
+st.header("4. Perbandingan Hari Kerja vs Hari Libur")
+fig3, ax3 = plt.subplots(figsize=(8, 4))
+
+workingday_avg = filtered_day_df.groupby('workingday')['cnt'].mean().reset_index()
+workingday_avg['workingday'] = workingday_avg['workingday'].map({0: 'Hari Libur/Weekend', 1: 'Hari Kerja'})
+
+sns.barplot(x='workingday', y='cnt', data=workingday_avg, palette='Set2', ax=ax3)
+ax3.set_title("Rata-rata Peminjaman: Hari Kerja vs Hari Libur")
+st.pyplot(fig3)
+
+st.caption("© 2024 Shinta Khumaira | Bike Sharing Data Analytics")
