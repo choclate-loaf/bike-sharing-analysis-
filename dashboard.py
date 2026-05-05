@@ -27,8 +27,8 @@ st.set_page_config(
 def load_data():
     """Memuat data dari file CSV dan melakukan pra-pemrosesan dasar."""
     try:
-        hour_df = pd.read_csv('data/hour.csv')
-        day_df = pd.read_csv('data/day.csv')
+        hour_df = pd.read_csv('hour.csv')
+        day_df = pd.read_csv('day.csv')
     except FileNotFoundError:
         # Fallback jika path 'data/' tidak ditemukan
         hour_df = pd.read_csv('../data/hour.csv')
